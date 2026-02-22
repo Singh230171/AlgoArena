@@ -304,56 +304,28 @@ const SortingVisualizer = () => {
   // Improved getBarDimensions with minimum width guarantee for 3-digit numbers
   const getBarDimensions = () => {
     if (!array || array.length === 0) {
-      return { barWidth: 0, gap: 0, containerWidth: "w-full" };
+      return { barWidth: 0, gap: 0, containerWidth: "100%" };
     }
 
     const screenWidth = window.innerWidth;
     const isMobile = screenWidth < 640;
-    const isTablet = screenWidth >= 640 && screenWidth < 1024;
+    const isTablet = screenWidth < 1024;
 
-    // Calculate container width based on screen size
-    const containerWidth = screenWidth - (isMobile ? 20 : isTablet ? 60 : 300);
-    const rightPadding = isMobile ? 40 : 200;
+    const minGap = isMobile ? 2 : isTablet ? 3 : 4;
+    const minBarWidth = isMobile ? 12 : isTablet ? 16 : 18;
 
-    // Adjust gap size based on array length and device
-    let minGap;
-    if (isMobile) {
-      minGap = array.length <= 20 ? 2 : 1;
-    } else if (isTablet) {
-      minGap = array.length <= 30 ? 3 : 2;
-    } else {
-      minGap = array.length <= 40 ? 4 : 2;
-    }
+    // Subtracting the sidebar width to get actual available space
+    const sidebarWidth = isMobile ? 0 : isTablet ? 80 : 256; 
+    const availableWidth = screenWidth - sidebarWidth - 40; // 40px for container padding
 
-    // Calculate bar width based on available space
-    // Improved minimum width for 3 digits - set higher minimum
-    const minBarWidth = isMobile ? 14 : isTablet ? 18 : 22; // Increased minimum widths
-
-    let barWidth = Math.max(
-      minBarWidth, // Higher minimum width to accommodate 3 digits
-      Math.floor(
-        (containerWidth - rightPadding - array.length * minGap) / array.length
-      )
+    let barWidth = Math.floor(
+      (availableWidth - array.length * minGap) / array.length
     );
 
-    // If we can't fit all bars with minimum width, reduce the gap first
-    if (barWidth < minBarWidth && minGap > 1) {
-      minGap = 1;
-      barWidth = Math.max(
-        minBarWidth,
-        Math.floor(
-          (containerWidth - rightPadding - array.length * minGap) / array.length
-        )
-      );
-    }
+    barWidth = Math.max(barWidth, minBarWidth);
 
-    // For very large arrays, we may need to scroll anyway
-    if (barWidth < minBarWidth) {
-      barWidth = minBarWidth; // Force minimum width even if it requires scrolling
-    }
-
-    // Calculate total width needed
-    const totalWidth = (barWidth + minGap) * array.length + rightPadding + 100;
+    // FIX: Remove the +300. Use actual calculation.
+    const totalWidth = (barWidth + minGap) * array.length;
 
     return {
       barWidth,
@@ -691,91 +663,78 @@ const SortingVisualizer = () => {
 
       {/* Scrollable Content Section - using percentage-based margins for better mobile and tablet responsiveness */}
       <div className="pb-20 mt-[20%] sm:mt-[15%] md:mt-[12%] lg:mt-10">
-        <div className="flex-1 p-2 mx-2 rounded-lg sm:p-6 sm:mx-4 bg-slate-900">
-          <div
-            ref={scrollContainerRef}
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            className="h-[calc(100vh-170px)] sm:h-[calc(100vh-180px)] overflow-x-scroll overflow-y-hidden cursor-grab active:cursor-grabbing touch-pan-x scrollbar-thin scrollbar-track-slate-700 scrollbar-thumb-blue-500 hover:scrollbar-thumb-blue-400 pb-4"
-          >
-            <div className="relative flex items-end min-h-full pt-8 pr-[200px]">
-              <div
-                className="relative w-full h-full min-w-full"
-                style={{ width: `${getBarDimensions().containerWidth}` }}
+      <div className="flex-1 min-w-0 p-2 mx-2 rounded-lg sm:p-6 sm:mx-4 bg-slate-900">
+        <div
+          ref={scrollContainerRef}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          className="h-[calc(100vh-250px)] overflow-x-auto overflow-y-hidden cursor-grab active:cursor-grabbing pb-8"
+        >
+          {/* REMOVED pr-[200px] and added w-full */}
+          <div className="relative flex items-end min-h-full w-full"> 
+            <div
+                className="relative h-full"
+                style={{ width: `${getBarDimensions().containerWidth}px` }}
               >
-                {array.map((value, idx) => {
-                  const { barWidth, gap } = getBarDimensions();
-                  const isSwapping =
-                    idx === currentIndex || idx === compareIndex;
-                  const position = idx * (barWidth + gap);
-
-                  // Ensure value is a number
-                  const numericValue =
-                    typeof value === "object" ? value.value : value;
-
-                  const maxHeight = 430;
-                  const scale = maxHeight / Math.max(...array);
-                  const barHeight = numericValue * scale;
-
-                  return (
-                    <motion.div
-                      key={`bar-${idx}`}
-                      className={`absolute ${getBarColor(
-                        idx
-                      )} transition-colors duration-200 bottom-[50px]`}
-                      initial={!isSorting ? { y: 1000, opacity: 0 } : false}
-                      animate={{
-                        x: position,
-                        ...(!isSorting && !isPlaying
-                          ? {
-                              y: 0,
-                              opacity: 1,
-                            }
-                          : {}),
-                        transition: {
-                          y: {
-                            duration: 0.5,
-                            delay: idx * 0.02,
-                            type: "spring",
-                            stiffness: 50,
-                            damping: 8,
-                          },
-                          x: {
-                            type: "tween",
-                            duration: 0.4,
-                            ease: "easeInOut",
-                          },
-                        },
-                      }}
-                      style={{
-                        height: `${barHeight}px`,
-                        width: barWidth,
-                      }}
-                    >
-                      {/* Value label with improved positioning */}
-                      <motion.div
-                        className={`absolute w-full text-center -top-8
-                          text-[14px] sm:text-[15px] font-medium ${
-                            isSwapping ? "text-orange-300" : "text-gray-300"
-                          }`}
-                        animate={{ scale: isSwapping ? 1.1 : 1 }}
-                      >
-                        {numericValue}
-                      </motion.div>
-
-                      {/* Index label with improved positioning */}
-                      <motion.div
-                        className={`absolute w-full text-center -bottom-6
-                          text-[14px] sm:text-[15px] font-medium ${
-                            isSwapping ? "text-orange-300" : "text-green-400"
-                          }`}
-                        animate={{ scale: isSwapping ? 1.1 : 1 }}
-                      >
-                        {idx}
-                      </motion.div>
-                    </motion.div>
+                {(() => {
+                  // compute max ONCE (important)
+                  const allValues = array.map(v =>
+                    typeof v === "object" ? v.value : v
                   );
-                })}
+                  const maxVal = Math.max(...allValues, 1);
+
+                  return array.map((value, idx) => {
+                    const { barWidth, gap } = getBarDimensions();
+                    const isSwapping = idx === currentIndex || idx === compareIndex;
+                    const position = idx * (barWidth + gap);
+
+                    const numericValue =
+                      typeof value === "object" ? value.value : value;
+
+                    const containerHeight =
+                      scrollContainerRef.current?.getBoundingClientRect().height || 400;
+
+                    // KEY FIX: extra headroom so tallest bar NEVER touches top
+                    const maxHeight = containerHeight - 220;
+
+                    const barHeight = Math.max(
+                      (numericValue / maxVal) * maxHeight,
+                      6
+                    );
+
+                    return (
+                      <motion.div
+                        key={`bar-${idx}`}
+                        className={`absolute ${getBarColor(idx)} rounded-t-sm`}
+                        initial={!isSorting ? { y: 200, opacity: 0 } : false}
+                        animate={{
+                          x: position,
+                          y: 0,
+                          opacity: 1,
+                          height: barHeight,
+                        }}
+                        transition={{
+                          x: { type: "tween", duration: 0.4 },
+                          height: { type: "spring", stiffness: 260, damping: 26 },
+                        }}
+                        style={{
+                          width: barWidth,
+                          bottom: "60px",
+                        }}
+                      >
+                        {/* value */}
+                        <div className="absolute -top-7 w-full text-center text-[12px] font-bold text-white">
+                          {numericValue}
+                        </div>
+
+                        {/* index */}
+                        <div className="absolute -bottom-6 w-full text-center text-[11px] text-slate-400">
+                          {idx}
+                        </div>
+                      </motion.div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>
